@@ -143,15 +143,17 @@ function extBack(ext, nom){
   return row[nom2] ?? 0;
 }
 
-// ===== 金額プルダウン =====
+// ===== 金額プルダウン生成 =====
 const priceSelect = document.getElementById("price");
-[0, 5000, 10000].forEach(p=>{
-  const o = document.createElement("option");
-  o.value = p;
-  o.textContent = (p === 0 ? "カード決済（0円）" : p);
-  priceSelect.appendChild(o);
-});
-for(let p = 12000; p <= 30000; p += 1000){
+
+// カード決済（0円）だけ残す
+const zero = document.createElement("option");
+zero.value = 0;
+zero.textContent = "カード決済（0円）";
+priceSelect.appendChild(zero);
+
+// 通常分 12000〜100000（1000円刻み）
+for(let p = 12000; p <= 100000; p += 1000){
   const o = document.createElement("option");
   o.value = p;
   o.textContent = p;
