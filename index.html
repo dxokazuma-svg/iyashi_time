@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>癒し待夢 給料計算（指名別バック）</title>
+
+<style>
+:root{
+  --pink:#F6A5C0;
+  --pink-soft:#FDE7EF;
+  --pink-strong:#E85A8A;
+  --border:#F6A5C0;
+  --muted:#666;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif;background:#fff;margin:0;}
+header{background:var(--pink);color:#fff;text-align:center;padding:14px;font-weight:800;}
+.container{padding:14px;max-width:560px;margin:0 auto;}
+.card{background:var(--pink-soft);border-radius:14px;padding:14px;margin-bottom:12px;}
+h3{margin:0 0 10px;font-size:16px;}
+select{width:100%;padding:12px;font-size:18px;border-radius:12px;border:2px solid var(--border);font-weight:800;}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;}
+.btn{flex:1 1 30%;padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--pink);font-weight:800;font-size:14px;}
+.btn.active{background:var(--pink);color:#fff;}
+.result{text-align:center;}
+.label{color:var(--muted);font-size:14px;}
+.value{font-size:34px;color:var(--pink-strong);font-weight:900;}
+.value.small{font-size:30px;}
+.primary{width:100%;border:none;border-radius:14px;padding:14px;font-size:17px;font-weight:900;background:var(--pink);color:#fff;}
+.list{background:#fff;border-radius:14px;padding:10px;border:2px solid #f3b7cc;}
+.row{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr auto;gap:6px;padding:6px;font-size:13px;border-bottom:1px solid #eee;}
+.row.head{font-weight:900;color:#666;}
+.cell.back{color:var(--pink-strong);font-weight:900;}
+.sticky{background:var(--pink-soft);border:2px solid #f3b7cc;border-radius:14px;padding:10px;margin-top:10px;font-weight:900;}
+.note{color:#666;font-size:12px;margin-top:6px;}
+</style>
+</head>
+
+<body>
+<header>
+癒し待夢<br>
+<small>給料計算</small>
+</header>
+
+<div class="container">
+
+<!-- お客さん金額 -->
+<div class="card">
+  <h3>お客さん金額</h3>
+  <select id="price">
+    <option value="0">選択してください</option>
+  </select>
+  <div class="note">※ カード決済は0円扱い</div>
+</div>
+
+<!-- コース -->
+<div class="card">
+  <h3>コース（必ず1つ）</h3>
+  <div class="btn-row">
+    <button class="btn course-btn" data-course="90">90分</button>
+    <button class="btn course-btn" data-course="120">120分</button>
+    <button class="btn course-btn" data-course="150">150分</button>
+  </div>
+</div>
+
+<!-- 指名 -->
+<div class="card">
+  <h3>指名（どれか1つ）</h3>
+  <div class="btn-row">
+    <button class="btn nom-btn" data-nom="free">フリー</button>
+    <button class="btn nom-btn" data-nom="net">ネット指名</button>
+    <button class="btn nom-btn" data-nom="hon">本指名</button>
+  </div>
+</div>
+
+<!-- 延長 -->
+<div class="card">
+  <h3>延長（どれか1つ）</h3>
+  <div class="btn-row">
+  <button class="btn ext-btn" data-ext="none">なし</button>
+  <button class="btn ext-btn" data-ext="30">+30分</button>
+  <button class="btn ext-btn" data-ext="60">+60分</button>
+  <button class="btn ext-btn" data-ext="90">+90分</button>
+  <button class="btn ext-btn" data-ext="120">+120分</button>
+  <button class="btn ext-btn" data-ext="150">+150分</button>
+</div>
+</div>
+
+<!-- 結果 -->
+<div class="card result">
+  <div class="label">今回のバック合計</div>
+  <div class="value" id="back">¥ 0</div>
+  <div style="height:10px;"></div>
+  <div class="label">今回の店落ち</div>
+  <div class="value small" id="shop">¥ 0</div>
+</div>
+
+<button class="primary" id="addBtn">この内容を追加</button>
+
+<!-- 履歴 -->
+<div class="card">
+  <h3>今日の履歴</h3>
+  <div class="list" id="listArea"></div>
+  <div class="sticky" id="totalArea"></div>
+</div>
+
+</div>
+
+<script>
+// ===== バック表（コース×指名）=====
+const COURSE_BACK = {
+  "90":  { free: 6500, net: 7000, hon: 8800 },
+  "120": { free: 8000, net: 8500, hon: 10600 },
+  "150": { free: 10000, net: 10500, hon: 13000 },
+};
+
+// ===== バック表（延長×指名）=====
+// ※ネット指名はフリー扱い（仕様）
+// 30分：フリー2500 / 本指名3000
+// 60分：フリー5000 / 本指名6000
+const EXT_BACK = {
+  "none": { free: 0, hon: 0 },
+
+  "30":   { free: 2500,  hon: 3000 },
+  "60":   { free: 5000,  hon: 6000 },
+
+  // 追加分
+  "90":   { free: 7500,  hon: 9000 },
+  "120":  { free: 10000, hon: 12000 },
+  "150":  { free: 12500, hon: 15000 },
+};
+
+function courseBack(course, nom){
+  if(!course) return 0;
+  const row = COURSE_BACK[course];
+  return row ? (row[nom] ?? 0) : 0;
+}
+
+function extBack(ext, nom){
+  // ネット指名はフリー扱い
+  const nom2 = (nom === "hon") ? "hon" : "free";
+  const row = EXT_BACK[ext] || EXT_BACK["none"];
+  return row[nom2] ?? 0;
+}
+
+// ===== 金額プルダウン =====
+const priceSelect = document.getElementById("price");
+[0, 5000, 10000].forEach(p=>{
+  const o = document.createElement("option");
+  o.value = p;
+  o.textContent = (p === 0 ? "カード決済（0円）" : p);
+  priceSelect.appendChild(o);
+});
+for(let p = 12000; p <= 30000; p += 1000){
+  const o = document.createElement("option");
+  o.value = p;
+  o.textContent = p;
+  priceSelect.appendChild(o);
+}
+
+// ===== 状態 =====
+let selectedCourse = "";
+let selectedNom = "free";
+let selectedExt = "none";
+
+// UI helpers
+function setNom(n){
+  selectedNom = n;
+  document.querySelectorAll(".nom-btn").forEach(b=>{
+    b.classList.toggle("active", b.dataset.nom === n);
+  });
+  calculate();
+}
+function setExt(e){
+  selectedExt = e;
+  document.querySelectorAll(".ext-btn").forEach(b=>{
+    b.classList.toggle("active", b.dataset.ext === e);
+  });
+  calculate();
+}
+
+// コース（単一）
+document.querySelectorAll(".course-btn").forEach(btn=>{
+  btn.addEventListener("click", function(){
+    selectedCourse = this.dataset.course;
+    document.querySelectorAll(".course-btn").forEach(b=>b.classList.remove("active"));
+    this.classList.add("active");
+    calculate();
+  });
+});
+
+// 指名（単一）
+document.querySelectorAll(".nom-btn").forEach(btn=>{
+  btn.addEventListener("click", function(){
+    setNom(this.dataset.nom);
+  });
+});
+
+// 延長（単一）
+document.querySelectorAll(".ext-btn").forEach(btn=>{
+  btn.addEventListener("click", function(){
+    setExt(this.dataset.ext);
+  });
+});
+
+// 初期選択
+setNom("free");
+setExt("none");
+
+// 金額変更
+priceSelect.addEventListener("change", calculate);
+
+// 計算
+function calculate(){
+  const price = Number(priceSelect.value || 0);
+  const back = courseBack(selectedCourse, selectedNom) + extBack(selectedExt, selectedNom);
+  const shop = price - back;
+
+  document.getElementById("back").textContent = `¥ ${back.toLocaleString()}`;
+  document.getElementById("shop").textContent = `¥ ${shop.toLocaleString()}`;
+}
+
+// ===== localStorage =====
+const STORAGE_KEY = "iyashimayu_course_nom_ext_today_v2";
+
+function load(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+function save(r){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
+}
+
+// ラベル
+function nomLabel(n){ return n==="net" ? "ネット指名" : n==="hon" ? "本指名" : "フリー"; }
+function extLabel(e){ return e==="30" ? "+30" : e==="60" ? "+60" : "延長なし"; }
+
+document.getElementById("addBtn").addEventListener("click", ()=>{
+  if(!selectedCourse){
+    alert("コースを選択してください");
+    return;
+  }
+  const price = Number(priceSelect.value || 0);
+  const back = courseBack(selectedCourse, selectedNom) + extBack(selectedExt, selectedNom);
+  const shop = price - back;
+
+  const rec = {
+    course: selectedCourse,
+    nom: selectedNom,
+    ext: selectedExt,
+    price,
+    back,
+    shop
+  };
+
+  const data = load();
+  data.push(rec);
+  save(data);
+  render();
+});
+
+function render(){
+  const list = document.getElementById("listArea");
+  const total = document.getElementById("totalArea");
+  const data = load();
+
+  if(data.length === 0){
+    list.innerHTML = "<div style='text-align:center;color:#666;'>履歴なし</div>";
+  }else{
+    let html = `<div class="row head">
+      <div>内容</div><div>金額</div><div>バック</div><div>店落ち</div><div></div>
+    </div>`;
+    data.forEach((r,i)=>{
+      const content = `${r.course}分 / ${nomLabel(r.nom)} / ${extLabel(r.ext)}`;
+      html += `<div class="row">
+        <div>${content}</div>
+        <div>${r.price}</div>
+        <div class="cell back">${r.back}</div>
+        <div>${r.shop}</div>
+        <button onclick="del(${i})">🗑</button>
+      </div>`;
+    });
+    list.innerHTML = html;
+  }
+
+  const count = data.length;
+  const sumBack = data.reduce((s,r)=>s+r.back,0);
+  const sumShop = data.reduce((s,r)=>s+r.shop,0);
+
+  total.innerHTML = `
+    本数：${count} 本<br>
+    バック合計：¥ ${sumBack.toLocaleString()}<br>
+    店落ち合計：¥ ${sumShop.toLocaleString()}
+  `;
+}
+
+function del(i){
+  const d = load();
+  d.splice(i,1);
+  save(d);
+  render();
+}
+
+render();
+calculate();
+</script>
+
+</body>
+</html>
